@@ -10,6 +10,9 @@ This study will analyse those components within three different timeframes, whic
 2) Landsat 5 Level 2 Collection 2 Tier 1 (https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LT05_C02_T1_L2)
 3) Landsat 8 Level 2 Collection 2 Tier 1 (https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC08_C02_T1_L2)
 
+Code scripts of this project are also available in the following page:
+https://code.earthengine.google.com/a7ffac0ef9d1e5d388efacb0283f98fd
+
 Check out the webmap of this project through following Earth Engine Apps:
 https://harsisnugraha.users.earthengine.app/view/impacts-of-conurbation-within-jbmur
 
