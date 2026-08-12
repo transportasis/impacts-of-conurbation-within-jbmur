@@ -1,0 +1,738 @@
+// Measuring the Impacts of Conurbation within Jakarta Bandung Mega Urban Region
+// by Harsis Nugraha (2026)
+
+// (1) Analysis 1: Calculating NDVI and NDBI
+// 1.1 Build Function for Cloud Masking
+var landsat_mask = function(image) {
+
+  var cloudShadowBitMask = (1 << 4);  
+  var cloudsBitMask = (1 << 3);       
+  var qa = image.select('QA_PIXEL');  
+  var mask = qa.bitwiseAnd(cloudShadowBitMask).eq(0)  
+    .and(qa.bitwiseAnd(cloudsBitMask).eq(0));         
+    
+    return image.updateMask(mask);
+};
+
+// 1.2 Landsat Imagery for each year
+// 1.2.1 Landsat5 Imagery for 2000
+var landsat5_rgb_2000 = ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
+  .filterDate('2000-01-01', '2001-01-01')
+  .map(landsat_mask)
+  .median()
+  .clip(admin)
+  .select(['SR_B3', 'SR_B2', 'SR_B1', 'SR_B4', 'SR_B5', 'SR_B7'])
+  .multiply(0.0000275).add(-0.2);
+
+// 1.2.2 Landsat5 Imagery for 2009
+var landsat5_rgb_2009 = ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
+  .filterDate('2009-01-01', '2010-01-01')
+  .map(landsat_mask)
+  .median()
+  .clip(admin)
+  .select(['SR_B3', 'SR_B2', 'SR_B1', 'SR_B4', 'SR_B5', 'SR_B7'])
+  .multiply(0.0000275).add(-0.2);
+  
+// 1.2.3 Landsat8 Imagery for 2019
+var landsat8_rgb_2019 = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
+  .filterDate('2019-01-01', '2020-01-01')
+  .map(landsat_mask)
+  .median()
+  .clip(admin)
+  .select (['SR_B4', 'SR_B3', 'SR_B2', 'SR_B1', 'SR_B5', 'SR_B6', 'SR_B7'])
+  .multiply(0.0000275).add(-0.2);
+
+// 1.2.4 Visualise Landsat Imagery on the Map
+var landsat_rgb_param = {min: 0.0, max: 0.3};
+
+Map.addLayer(landsat5_rgb_2000, landsat_rgb_param, 'JBMUR Map - 2000');
+Map.addLayer(landsat5_rgb_2009, landsat_rgb_param, 'JBMUR Map - 2009');
+Map.addLayer(landsat8_rgb_2019, landsat_rgb_param, 'JBMUR Map - 2019');
+
+// 1.3 Calculate Normalized Difference Vegetation Index (NDVI)
+// 1.3.1 Prepare NDVI Calculation for each year
+var ndvi_2000 = landsat5_rgb_2000.normalizedDifference(['SR_B4', 'SR_B3']).rename('JBMUR NDVI - 2000');
+var ndvi_2009 = landsat5_rgb_2009.normalizedDifference(['SR_B4', 'SR_B3']).rename('JBMUR NDVI - 2009');
+var ndvi_2019 = landsat8_rgb_2019.normalizedDifference(['SR_B5', 'SR_B4']).rename('JBMUR NDVI - 2019');
+
+// 1.3.2 Visualise NDVI on the Map
+var ndvi_param = {
+  min: 0.00,
+  max: 0.80,
+  palette: [
+		'000000','a50026','d73027','f46d43','fdae61', 'fee08b',
+		'ffffbf','d9ef8b','a6d96a','66bd63','1a9850', '006837'
+		]
+};
+
+Map.addLayer(ndvi_2000, ndvi_param, 'JBMUR NDVI - 2000');
+Map.addLayer(ndvi_2009, ndvi_param, 'JBMUR NDVI - 2009');
+Map.addLayer(ndvi_2019, ndvi_param, 'JBMUR NDVI - 2019');
+
+// 1.4 Calculate Normalized Difference Built-up Index (NDBI)
+// 1.4.1 Prepare NDBI Calculation for each year
+var ndbi_2000 = landsat5_rgb_2000.normalizedDifference(['SR_B5', 'SR_B4']).rename('JBMUR NDBI - 2000');
+var ndbi_2009 = landsat5_rgb_2009.normalizedDifference(['SR_B5', 'SR_B4']).rename('JBMUR NDBI - 2009');
+var ndbi_2019 = landsat8_rgb_2019.normalizedDifference(['SR_B6', 'SR_B5']).rename('JBMUR NDBI - 2019');
+
+// 1.4.2 Visualise NDBI on the Map
+var ndbi_param = {
+  min: -0.30,
+  max: 0.20,
+  palette: [
+		'006837','1a9850','66bd63','a6d96a','d9ef8b', 'ffffbf',
+		'fee08b','fdae61','f46d43','d73027','a50026', '000000'
+	]
+};
+
+Map.addLayer(ndbi_2000, ndbi_param, 'JBMUR NDBI - 2000');
+Map.addLayer(ndbi_2009, ndbi_param, 'JBMUR NDBI - 2009');
+Map.addLayer(ndbi_2019, ndbi_param, 'JBMUR NDBI - 2019');
+
+// (2) Analysis 2: Identifying Land Use Land Cover (LULC) Classification
+// 2.1 Add Spectral Indices for each year
+// 2.1.1 Landsat 5 with Indices for 2000
+var landsat5_indices_2000 = landsat5_rgb_2000
+  .addBands(ndvi_2000.rename('NDVI'))
+  .addBands(ndbi_2000.rename('NDBI'));
+
+// 2.1.2 Landsat 5 with Indices for 2009
+var landsat5_indices_2009 = landsat5_rgb_2009
+  .addBands(ndvi_2009.rename('NDVI'))
+  .addBands(ndbi_2009.rename('NDBI'));
+
+// 2.1.2 Landsat 8 with Indices for 2019
+var landsat8_indices_2019 = landsat8_rgb_2019
+  .addBands(ndvi_2019.rename('NDVI'))
+  .addBands(ndbi_2019.rename('NDBI'));
+
+// 2.2 Prepare Training Samples and Conduct Supervised Learning using Random Forest
+// 2.2.1 Add Description on LULC Classification and Set LULC Classnames
+print('The following code will be assigned to represent each type of LULC',
+        '0: Built-up',
+        '1: Water',
+        '2: Barren land',
+        '3: Low vegetation',
+        '4: Dense vegetation')
+        
+var class_lulc = ['Built-up', 'Water', 'Barren land', 'Low vegetation', 'Dense vegetation'];
+var palette_lulc = ['FF2400', '0F52BA', 'E5AA70', '7CFC00', '008000'];
+
+// 2.2.2 Training Samples, Random Forest Algorithm, and Calculate LULC area for 2000
+var ts_2000 = UR_00
+  .merge(WA_00)
+  .merge(BL_00)
+  .merge(LV_00)
+  .merge(DV_00);
+
+var bands_2000 = ['SR_B3', 'SR_B2', 'SR_B1', 'SR_B4', 'SR_B5', 'SR_B7', 'NDVI', 'NDBI'];
+
+var signature_2000 = landsat5_indices_2000.select(bands_2000).sampleRegions({
+  collection: ts_2000,
+  properties: ['lc'],
+  scale: 30
+}); 
+
+var randomforest_2000 = ee.Classifier.smileRandomForest(100).train({
+  features: signature_2000,
+  classProperty: 'lc',
+  inputProperties: bands_2000
+}); 
+
+var lulc_2000 = landsat5_indices_2000.select(bands_2000).classify(randomforest_2000);
+
+var area_lulc_2000 = ee.Image.pixelArea().divide(1000000)
+  .addBands(lulc_2000)
+  .reduceRegion({
+    reducer: ee.Reducer.sum().group({
+      groupField: 1,
+      groupName: 'LULC Classification',
+    }),
+    geometry: admin,
+    scale: 30,
+    maxPixels: 10e10
+  });
+
+print('Area (in km2) for each type of LULC in 2000', area_lulc_2000);
+
+var groupList = ee.List(area_lulc_2000.get('groups'));
+var fc = ee.FeatureCollection(groupList.map(function(item) {
+  var dict = ee.Dictionary(item);
+  var classId = dict.get('LULC Classification');
+  var areaVal = dict.get('sum');
+  var className = ee.List(class_lulc).get(ee.Number(classId));
+  
+  return ee.Feature(null, {
+    'class_name': className,
+    'area': areaVal
+  });
+}));
+
+var chart_2000 = ui.Chart.feature.byFeature({
+  features: fc,
+  xProperty: 'class_name',
+  yProperties: ['area']
+})
+.setChartType('PieChart')
+.setOptions({
+  title: 'JBMUR LULC Area Distribution in 2000',
+  colors: palette_lulc,
+  sliceVisibilityThreshold: 0
+});
+
+print(chart_2000);
+
+// 2.2.3 Training Samples, Random Forest Algorithm, and Calculate LULC area for 2009
+var ts_2009 = UR_09
+  .merge(WA_09)
+  .merge(BL_09)
+  .merge(LV_09)
+  .merge(DV_09);
+
+var bands_2009 = ['SR_B3', 'SR_B2', 'SR_B1', 'SR_B4', 'SR_B5', 'SR_B7', 'NDVI', 'NDBI'];
+
+var signature_2009 = landsat5_indices_2009.select(bands_2009).sampleRegions({
+  collection: ts_2009,
+  properties: ['lc'],
+  scale: 30
+}); 
+
+var randomforest_2009 = ee.Classifier.smileRandomForest(100).train({
+  features: signature_2009,
+  classProperty: 'lc',
+  inputProperties: bands_2009
+}); 
+
+var lulc_2009 = landsat5_indices_2009.select(bands_2009).classify(randomforest_2009);
+
+var area_lulc_2009 = ee.Image.pixelArea().divide(1000000)
+  .addBands(lulc_2009)
+  .reduceRegion({
+    reducer: ee.Reducer.sum().group({
+      groupField: 1,
+      groupName: 'LULC Classification',
+    }),
+    geometry: admin,
+    scale: 30,
+    maxPixels: 10e10
+  });
+
+print('Area (in km2) for each type of LULC in 2009', area_lulc_2009);
+
+var groupList = ee.List(area_lulc_2009.get('groups'));
+var fc = ee.FeatureCollection(groupList.map(function(item) {
+  var dict = ee.Dictionary(item);
+  var classId = dict.get('LULC Classification');
+  var areaVal = dict.get('sum');
+  var className = ee.List(class_lulc).get(ee.Number(classId));
+  
+  return ee.Feature(null, {
+    'class_name': className,
+    'area': areaVal
+  });
+}));
+
+var chart_2009 = ui.Chart.feature.byFeature({
+  features: fc,
+  xProperty: 'class_name',
+  yProperties: ['area']
+})
+.setChartType('PieChart')
+.setOptions({
+  title: 'JBMUR LULC Area Distribution in 2009',
+  colors: palette_lulc,
+  sliceVisibilityThreshold: 0
+});
+
+print(chart_2009);
+
+// 2.2.4 Training Samples, Random Forest Algorithm, and Calculate LULC area for 2019
+var ts_2019 = UR_19
+  .merge(WA_19)
+  .merge(BL_19)
+  .merge(LV_19)
+  .merge(DV_19);
+
+var bands_2019 = ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B1', 'SR_B5', 'SR_B6', 'SR_B7', 'NDVI', 'NDBI'];
+
+var signature_2019 = landsat8_indices_2019.select(bands_2019).sampleRegions({
+  collection: ts_2019,
+  properties: ['lc'],
+  scale: 30
+}); 
+
+var randomforest_2019 = ee.Classifier.smileRandomForest(100).train({
+  features: signature_2019,
+  classProperty: 'lc',
+  inputProperties: bands_2019
+}); 
+
+var lulc_2019 = landsat8_indices_2019.select(bands_2019).classify(randomforest_2019);
+
+var area_lulc_2019 = ee.Image.pixelArea().divide(1000000)
+  .addBands(lulc_2019)
+  .reduceRegion({
+    reducer: ee.Reducer.sum().group({
+      groupField: 1,
+      groupName: 'LULC Classification',
+    }),
+    geometry: admin,
+    scale: 30,
+    maxPixels: 10e10
+  });
+
+print('Area (in km2) for each type of LULC in 2019', area_lulc_2019);
+
+var groupList = ee.List(area_lulc_2019.get('groups'));
+var fc = ee.FeatureCollection(groupList.map(function(item) {
+  var dict = ee.Dictionary(item);
+  var classId = dict.get('LULC Classification');
+  var areaVal = dict.get('sum');
+  var className = ee.List(class_lulc).get(ee.Number(classId));
+  
+  return ee.Feature(null, {
+    'class_name': className,
+    'area': areaVal
+  });
+}));
+
+var chart_2019 = ui.Chart.feature.byFeature({
+  features: fc,
+  xProperty: 'class_name',
+  yProperties: ['area']
+})
+.setChartType('PieChart')
+.setOptions({
+  title: 'JBMUR LULC Area Distribution in 2019',
+  colors: palette_lulc,
+  sliceVisibilityThreshold: 0
+});
+
+print(chart_2019);
+
+// 2.2.6 Visualise LULC Classification on the Map
+var lulc_param = {
+  min: 0,
+  max: 4,
+  palette: [
+    'FF2400', '0F52BA', 'E5AA70', '7CFC00', '008000'
+    ]
+};
+
+Map.addLayer(lulc_2000, lulc_param, 'JBMUR LULC - 2000');
+Map.addLayer(lulc_2009, lulc_param, 'JBMUR LULC - 2009');
+Map.addLayer(lulc_2019, lulc_param, 'JBMUR LULC - 2019');
+
+// (3) Analysis 3: Identifying Land Surface Temperature (LST)
+// 3.1 Add Description on LST Classification
+print('The following code will be assigned to represent each class of LST',
+        '0: Very low',
+        '1: Low',
+        '2: Moderate',
+        '3: High',
+        '4: Very high')
+
+var class_lst = ['Very low', 'Low', 'Moderate', 'High', 'Very high'];
+var palette_lst = ['Blue', 'Cyan', 'Yellow', 'Orange', 'Red'];
+
+// 3.2 LST Calculation for 2000
+// 3.2.1 Calculation and Classification
+var lst_2000 = ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
+  .filterDate('2000-06-01', '2000-10-01')
+  .map(landsat_mask)
+  .median()
+  .clip(admin)
+  .select('ST_B6')
+  .multiply(0.00341802)
+  .add(149)
+  .subtract(273.15)
+
+var lst_2000_reclass = ee.Image(lst_2000)
+  .where(lst_2000.lte(20), 0)
+  .where(lst_2000.gt(20).and(lst_2000.lte(25)), 1)
+  .where(lst_2000.gt(25).and(lst_2000.lte(30)), 2)
+  .where(lst_2000.gt(30).and(lst_2000.lte(35)), 3)
+  .where(lst_2000.gt(35), 4);
+
+// 3.2.2 Area Calculation and Pie Chart
+var area_lst_2000 = ee.Image.pixelArea().divide(1000000)
+  .addBands(lst_2000_reclass)
+  .reduceRegion({
+    reducer: ee.Reducer.sum().group({
+      groupField: 1,
+      groupName: 'LST Class',
+    }),
+    geometry: admin,
+    scale: 30,
+    maxPixels: 10e10
+  });
+
+print('Area (in km2) for each class of LST in 2000', area_lst_2000);
+
+var groupList_lst_2000 = ee.List(area_lst_2000.get('groups'));
+var fc = ee.FeatureCollection(groupList_lst_2000.map(function(item) {
+  var dict = ee.Dictionary(item);
+  var classId = dict.get('LST Class');
+  var areaVal = dict.get('sum');
+  var className = ee.List(class_lst).get(ee.Number(classId));
+  
+  return ee.Feature(null, {
+    'class_name': className,
+    'area': areaVal
+  });
+}));
+
+var chart_lst_2000 = ui.Chart.feature.byFeature({
+  features: fc,
+  xProperty: 'class_name',
+  yProperties: ['area']
+})
+.setChartType('PieChart')
+.setOptions({
+  title: 'JBMUR LST Class Area Distribution in 2000',
+  colors: palette_lst,
+  sliceVisibilityThreshold: 0
+});
+
+print(chart_lst_2000);
+
+// 3.3 LST Calculation for 2009
+// 3.3.1 Calculation and Classification
+var lst_2009 = ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
+  .filterDate('2009-06-01', '2009-10-01')
+  .map(landsat_mask)
+  .median()
+  .clip(admin)
+  .select('ST_B6')
+  .multiply(0.00341802)
+  .add(149)
+  .subtract(273.15)
+
+var lst_2009_reclass = ee.Image(lst_2009)
+  .where(lst_2009.lte(20), 0)
+  .where(lst_2009.gt(20).and(lst_2009.lte(25)), 1)
+  .where(lst_2009.gt(25).and(lst_2009.lte(30)), 2)
+  .where(lst_2009.gt(30).and(lst_2009.lte(35)), 3)
+  .where(lst_2009.gt(35), 4);
+
+// 3.3.2 Area Calculation and Pie Chart
+var area_lst_2009 = ee.Image.pixelArea().divide(1000000)
+  .addBands(lst_2009_reclass)
+  .reduceRegion({
+    reducer: ee.Reducer.sum().group({
+      groupField: 1,
+      groupName: 'LST Class',
+    }),
+    geometry: admin,
+    scale: 30,
+    maxPixels: 10e10
+  });
+
+print('Area (in km2) for each class of LST in 2009', area_lst_2009);
+
+var groupList_lst_2009 = ee.List(area_lst_2009.get('groups'));
+var fc = ee.FeatureCollection(groupList_lst_2009.map(function(item) {
+  var dict = ee.Dictionary(item);
+  var classId = dict.get('LST Class');
+  var areaVal = dict.get('sum');
+  var className = ee.List(class_lst).get(ee.Number(classId));
+  
+  return ee.Feature(null, {
+    'class_name': className,
+    'area': areaVal
+  });
+}));
+
+var chart_lst_2009 = ui.Chart.feature.byFeature({
+  features: fc,
+  xProperty: 'class_name',
+  yProperties: ['area']
+})
+.setChartType('PieChart')
+.setOptions({
+  title: 'JBMUR LST Class Area Distribution in 2009',
+  colors: palette_lst,
+  sliceVisibilityThreshold: 0
+});
+
+print(chart_lst_2009);
+
+// 3.4 LST Calculation for 2019
+// 3.4.1 Calculation and Classification
+var lst_2019 = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
+  .filterDate('2019-06-01', '2019-10-01')
+  .map(landsat_mask)
+  .median()
+  .clip(admin)
+  .select('ST_B10')
+  .multiply(0.00341802)
+  .add(149)
+  .subtract(273.15)
+
+var lst_2019_reclass = ee.Image(lst_2019)
+  .where(lst_2019.lte(20), 0)
+  .where(lst_2019.gt(20).and(lst_2019.lte(25)), 1)
+  .where(lst_2019.gt(25).and(lst_2019.lte(30)), 2)
+  .where(lst_2019.gt(30).and(lst_2019.lte(35)), 3)
+  .where(lst_2019.gt(35), 4);
+
+// 3.4.2 Area Calculation and Pie Chart
+var area_lst_2019 = ee.Image.pixelArea().divide(1000000)
+  .addBands(lst_2019_reclass)
+  .reduceRegion({
+    reducer: ee.Reducer.sum().group({
+      groupField: 1,
+      groupName: 'LST Class',
+    }),
+    geometry: admin,
+    scale: 30,
+    maxPixels: 10e10
+  });
+
+print('Area (in km2) for each class of LST in 2019', area_lst_2019);
+
+var groupList_lst_2019 = ee.List(area_lst_2019.get('groups'));
+var fc = ee.FeatureCollection(groupList_lst_2019.map(function(item) {
+  var dict = ee.Dictionary(item);
+  var classId = dict.get('LST Class');
+  var areaVal = dict.get('sum');
+  var className = ee.List(class_lst).get(ee.Number(classId));
+  
+  return ee.Feature(null, {
+    'class_name': className,
+    'area': areaVal
+  });
+}));
+
+var chart_lst_2019 = ui.Chart.feature.byFeature({
+  features: fc,
+  xProperty: 'class_name',
+  yProperties: ['area']
+})
+.setChartType('PieChart')
+.setOptions({
+  title: 'JBMUR LST Class Area Distribution in 2019',
+  colors: palette_lst,
+  sliceVisibilityThreshold: 0
+});
+
+print(chart_lst_2019);
+
+// 3.5 Visualise LST on the Map
+var lst_reclass_param = {
+  min: 0, 
+  max: 4, 
+  palette: palette_lst
+};
+
+Map.addLayer(lst_2000_reclass, lst_reclass_param, 'JBMUR LST - 2000');
+Map.addLayer(lst_2009_reclass, lst_reclass_param, 'JBMUR LST - 2009');
+Map.addLayer(lst_2019_reclass, lst_reclass_param, 'JBMUR LST - 2019');
+
+// PREPARE MAP LAYOUT
+// Create Map Panel
+var mapPanel = ui.Map();
+
+mapPanel.addLayer(lst_2019_reclass, lst_reclass_param, 'JBMUR LST - 2019').setShown(false);
+mapPanel.addLayer(lst_2009_reclass, lst_reclass_param, 'JBMUR LST - 2009').setShown(false);
+mapPanel.addLayer(lst_2000_reclass, lst_reclass_param, 'JBMUR LST - 2000').setShown(false);
+mapPanel.addLayer(lulc_2019, lulc_param, 'JBMUR LULC - 2019').setShown(false);
+mapPanel.addLayer(lulc_2009, lulc_param, 'JBMUR LULC - 2009').setShown(false);
+mapPanel.addLayer(lulc_2000, lulc_param, 'JBMUR LULC - 2000').setShown(false);
+mapPanel.addLayer(ndbi_2019, ndbi_param, 'JBMUR NDBI - 2019').setShown(false);
+mapPanel.addLayer(ndbi_2009, ndbi_param, 'JBMUR NDBI - 2009').setShown(false);
+mapPanel.addLayer(ndbi_2000, ndbi_param, 'JBMUR NDBI - 2000').setShown(false);
+mapPanel.addLayer(ndvi_2019, ndvi_param, 'JBMUR NDVI - 2019').setShown(false);
+mapPanel.addLayer(ndvi_2009, ndvi_param, 'JBMUR NDVI - 2009').setShown(false);
+mapPanel.addLayer(ndvi_2000, ndvi_param, 'JBMUR NDVI - 2000').setShown(false);
+mapPanel.addLayer(landsat8_rgb_2019, landsat_rgb_param, 'JBMUR Map - 2019').setShown(false);
+mapPanel.addLayer(landsat5_rgb_2009, landsat_rgb_param, 'JBMUR Map - 2009').setShown(false);
+mapPanel.addLayer(landsat5_rgb_2000, landsat_rgb_param, 'JBMUR Map - 2000').setShown(false);
+
+mapPanel.centerObject(admin, 9);
+
+// Create Inspector Panel
+var inspectorPanel = ui.Panel({
+  style: {
+    position: 'top-left',
+    width: '350px',
+    padding: '8px'
+  }
+});
+
+// Fill the Panel with map title and description
+var intro = ui.Panel([
+  ui.Label({
+    value: 'Measuring the Impacts of Conurbation within Jakarta Bandung Mega Urban Region',
+    style: {fontSize: '20px', fontWeight: 'bold'}
+  }),
+  ui.Label({
+    value: 'By applying remote sensing and utilising Landsat imagery through Google Earth Engine,\n'+
+    'this study will examine the impacts of conurbation within Jakarta Bandung Mega Urban Region\n'+
+    'by identifying NDVI, NDBI, LULC and LST. This study will analyse those components within three\n'+
+    'different timeframe, which consists of the year of 2000, 2009, and 2019.',
+    style: {fontSize: '13px', textAlign: 'justify'}
+  })
+]);
+inspectorPanel.add(intro);
+
+// Create function for map legend
+function makeColorBarParams(palette) {
+  return {
+    bbox: [0, 0, 1, 0.1],
+    dimensions: '100x10',
+    format: 'png',
+    min: 0,
+    max: 1,
+    palette: palette,
+  };
+}
+
+// Create map legend for NDVI
+var legend_ndvi = ui.Thumbnail({
+  image: ee.Image.pixelLonLat().select(0),
+  params: makeColorBarParams(ndvi_param.palette),
+  style: {stretch: 'horizontal', margin: '0px 8px', maxHeight: '24px'}
+});
+
+var legendLabels_ndvi = ui.Panel({
+  widgets: [
+    ui.Label(ndvi_param.min, {margin: '4px 8px'}),
+    ui.Label('', {margin: '4px 8px', textAlign: 'center', stretch: 'horizontal'}),
+    ui.Label(ndvi_param.max, {margin: '4px 8px'})
+  ],
+  layout: ui.Panel.Layout.flow('horizontal')
+});
+
+var legendTitle_ndvi = ui.Label({
+  value: 'Normalized Difference Vegetation Index',
+  style: {fontWeight: 'bold'}
+});
+
+var legendPanel_ndvi = ui.Panel([legendTitle_ndvi, legend_ndvi, legendLabels_ndvi]);
+inspectorPanel.add(legendPanel_ndvi);
+
+// Create map legend for NDBI
+var legend_ndbi = ui.Thumbnail({
+  image: ee.Image.pixelLonLat().select(0),
+  params: makeColorBarParams(ndbi_param.palette),
+  style: {stretch: 'horizontal', margin: '0px 8px', maxHeight: '24px'}
+});
+
+var legendLabels_ndbi = ui.Panel({
+  widgets: [
+    ui.Label(ndbi_param.min, {margin: '4px 8px'}),
+    ui.Label('', {margin: '4px 8px', textAlign: 'center', stretch: 'horizontal'}),
+    ui.Label(ndbi_param.max, {margin: '4px 8px'})
+  ],
+  layout: ui.Panel.Layout.flow('horizontal')
+});
+
+var legendTitle_ndbi = ui.Label({
+  value: 'Normalized Difference Built-up Index',
+  style: {fontWeight: 'bold'}
+});
+
+var legendPanel_ndbi = ui.Panel([legendTitle_ndbi, legend_ndbi, legendLabels_ndbi]);
+inspectorPanel.add(legendPanel_ndbi);
+
+// Create map legend for LULC
+var legend_lulc = ui.Panel({
+  style: {
+    position: 'top-left',
+  }
+});
+
+var legendTitle_lulc = ui.Label({
+  value: 'Land Use Land Cover',
+  style: {fontWeight: 'bold'}
+});
+
+var makeRow = function(color, name) {
+  var colorBox = ui.Label({
+    style: {
+      backgroundColor: '#' + color,
+      padding: '12px',
+      margin: '0 0 6px 0'
+    }
+  });
+  
+  var description = ui.Label({
+    value: name,
+    style: {margin: '4px 0 8px 10px'}
+  });
+  
+  return ui.Panel({
+    widgets: [colorBox, description],
+    layout: ui.Panel.Layout.Flow('horizontal')
+  });
+};
+
+for (var i = 0; i < class_lulc.length; i++) {
+  legend_lulc.add(makeRow(palette_lulc[i], class_lulc[i]));
+}
+
+inspectorPanel.add(legendTitle_lulc).add(legend_lulc);
+
+// Create map legend for LST
+var legend_lst = ui.Panel({
+  style: {
+    position: 'top-left',
+  }
+});
+
+var legendTitle_lst = ui.Label({
+  value: 'Land Surface Temperature (°C)',
+  style: {fontWeight: 'bold'}
+});
+
+var makeRow = function(color, name) {
+  var colorBox = ui.Label({
+    style: {
+      backgroundColor: color,
+      padding: '12px',
+      margin: '0 0 6px 0'
+    }
+  });
+  
+  var description = ui.Label({
+    value: name,
+    style: {margin: '4px 0 8px 10px'}
+  });
+  
+  return ui.Panel({
+    widgets: [colorBox, description],
+    layout: ui.Panel.Layout.Flow('horizontal')
+  });
+};
+
+for (var i = 0; i < class_lst.length; i++) {
+  legend_lst.add(makeRow(palette_lst[i], class_lst[i]));
+}
+
+inspectorPanel.add(legendTitle_lst).add(legend_lst);
+
+// Create Layer Selection Panel
+var selectionPanel = ui.Panel({
+  style: {
+    position: 'top-right',
+    width: '300px',
+    padding: '8px'
+  }
+});
+
+var label_selectionPanel = ui.Label({
+  value: 'Please select the layer you want to show in the "Layers" checkbox above!',
+  style: {fontSize: '15px',
+          fontWeight: 'bold',
+          fontStyle: 'italic',
+          color: 'red'
+        }
+});
+
+selectionPanel.add(label_selectionPanel);
+
+// Add Panel to User Interface
+ui.root.clear();
+mapPanel.add(inspectorPanel).add(selectionPanel);
+ui.root.add(mapPanel);
